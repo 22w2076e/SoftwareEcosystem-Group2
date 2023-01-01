@@ -16,42 +16,61 @@ const users: UserInfoResult = JSON.parse(
 
 const contributions: Record<
   string,
-  Record<string, { issueComments: number; contributions: number }>
+  Record<string, { issueCommentCount: number; contributionCount: number }>
+> = {};
+const contributionPerUser: Record<
+  string,
+  { issueCommentCount: number; contributionCount: number }
 > = {};
 for (const { owner, repo, issues, issueComments, contributors } of allRepos) {
-  const contributionForRepo: Record<
+  const contributionPerRepo: Record<
     string,
-    { issueComments: number; contributions: number }
+    { issueCommentCount: number; contributionCount: number }
   > = {};
   for (const issue of issues) {
     if (issue.user && issue.user.type === "User") {
-      contributionForRepo[issue.user.login] ??= {
-        issueComments: 0,
-        contributions: 0,
+      contributionPerRepo[issue.user.login] ??= {
+        issueCommentCount: 0,
+        contributionCount: 0,
       };
-      contributionForRepo[issue.user.login].issueComments++;
+      contributionPerRepo[issue.user.login].issueCommentCount++;
+      contributionPerUser[issue.user.login] ??= {
+        issueCommentCount: 0,
+        contributionCount: 0,
+      };
+      contributionPerUser[issue.user.login].issueCommentCount++;
     }
   }
   for (const issueComment of issueComments) {
     if (issueComment.user && issueComment.user.type === "User") {
-      contributionForRepo[issueComment.user.login] ??= {
-        issueComments: 0,
-        contributions: 0,
+      contributionPerRepo[issueComment.user.login] ??= {
+        issueCommentCount: 0,
+        contributionCount: 0,
       };
-      contributionForRepo[issueComment.user.login].issueComments++;
+      contributionPerRepo[issueComment.user.login].issueCommentCount++;
+      contributionPerUser[issueComment.user.login] ??= {
+        issueCommentCount: 0,
+        contributionCount: 0,
+      };
+      contributionPerUser[issueComment.user.login].issueCommentCount++;
     }
   }
   for (const contributor of contributors) {
     if (contributor.login && contributor.type === "User") {
-      contributionForRepo[contributor.login] ??= {
-        issueComments: 0,
-        contributions: 0,
+      contributionPerRepo[contributor.login] ??= {
+        issueCommentCount: 0,
+        contributionCount: 0,
       };
-      contributionForRepo[contributor.login].contributions++;
+      contributionPerRepo[contributor.login].contributionCount++;
+      contributionPerUser[contributor.login] ??= {
+        issueCommentCount: 0,
+        contributionCount: 0,
+      };
+      contributionPerUser[contributor.login].contributionCount++;
     }
   }
 
-  contributions[`${owner}/${repo}`] = contributionForRepo;
+  contributions[`${owner}/${repo}`] = contributionPerRepo;
 }
 
 const contributionsText = JSON.stringify(contributions, null, 2);
@@ -63,7 +82,7 @@ await Deno.writeTextFile(
 // 4-2. ユーザーのデータから必要な部分だけ抽出して整形
 
 const res = users.map(({
-  login,
+  login: userId,
   company,
   location,
   twitter_username,
@@ -71,14 +90,19 @@ const res = users.map(({
   followers,
   following,
 }) => ({
-  login,
+  userId,
+  issueCommentCount: contributionPerUser[userId].issueCommentCount,
+  contributionCount: contributionPerUser[userId].contributionCount,
   company,
   location,
   twitter_username,
   public_repos,
   followers,
   following,
-}));
+})).sort((a, b) =>
+  (b.issueCommentCount + b.contributionCount) -
+  (a.issueCommentCount + a.contributionCount)
+);
 
 const text = JSON.stringify(res, null, 2);
 await Deno.writeTextFile(
